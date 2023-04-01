@@ -320,8 +320,7 @@ class WitWidget(base.WitWidgetBase):
     if self._rendering_complete:
       # Use BroadcastChannel to allow this call to be made in a separate colab
       # cell from the cell that displays WIT.
-      channel_str = """(new BroadcastChannel('updateExamples{}'))""".format(
-        self.id)
+      channel_str = f"""(new BroadcastChannel('updateExamples{self.id}'))"""
       eval_js_str = channel_str + '.postMessage({data})'
       self._set_examples_looper(eval_js_str)
       self._generate_sprite()
@@ -410,8 +409,10 @@ class WitWidget(base.WitWidgetBase):
 
   def delete_example(self, index):
     self.examples.pop(index)
-    self.updated_example_indices = set([
-        i if i < index else i - 1 for i in self.updated_example_indices])
+    self.updated_example_indices = {
+        i if i < index else i - 1
+        for i in self.updated_example_indices
+    }
     self._generate_sprite()
 
   def update_example(self, index, example):

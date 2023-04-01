@@ -33,7 +33,7 @@ class InvalidUserInputError(Exception):
 
   @property
   def message(self):
-    return 'InvalidUserInputError: ' + str(self.original_exception)
+    return f'InvalidUserInputError: {str(self.original_exception)}'
 
 
 def convert_predict_response(pred, serving_bundle):

@@ -161,8 +161,6 @@ class WitWidgetBase(object):
     indices_to_infer = sorted(self.updated_example_indices)
     examples_to_infer = [
         self.json_to_proto(self.examples[index]) for index in indices_to_infer]
-    infer_objs = []
-    extra_output_objs = []
     serving_bundle = inference_utils.ServingBundle(
       self.config.get('inference_address'),
       self.config.get('model_name'),
@@ -178,8 +176,8 @@ class WitWidgetBase(object):
     (predictions, extra_output) = (
       inference_utils.run_inference_for_inference_results(
         examples_to_infer, serving_bundle))
-    infer_objs.append(predictions)
-    extra_output_objs.append(extra_output)
+    infer_objs = [predictions]
+    extra_output_objs = [extra_output]
     if ('inference_address_2' in self.config or
         self.compare_estimator_and_spec.get('estimator') or
         self.compare_custom_predict_fn):
@@ -213,20 +211,22 @@ class WitWidgetBase(object):
     examples = (self.examples if example_index == -1
                 else [self.examples[example_index]])
     examples = [self.json_to_proto(ex) for ex in examples]
-    scan_examples = [self.json_to_proto(ex) for ex in self.examples[0:50]]
-    serving_bundles = []
-    serving_bundles.append(inference_utils.ServingBundle(
-      self.config.get('inference_address'),
-      self.config.get('model_name'),
-      self.config.get('model_type'),
-      self.config.get('model_version'),
-      self.config.get('model_signature'),
-      self.config.get('uses_predict_api'),
-      self.config.get('predict_input_tensor'),
-      self.config.get('predict_output_tensor'),
-      self.estimator_and_spec.get('estimator'),
-      self.estimator_and_spec.get('feature_spec'),
-      self.custom_predict_fn))
+    scan_examples = [self.json_to_proto(ex) for ex in self.examples[:50]]
+    serving_bundles = [
+        inference_utils.ServingBundle(
+            self.config.get('inference_address'),
+            self.config.get('model_name'),
+            self.config.get('model_type'),
+            self.config.get('model_version'),
+            self.config.get('model_signature'),
+            self.config.get('uses_predict_api'),
+            self.config.get('predict_input_tensor'),
+            self.config.get('predict_output_tensor'),
+            self.estimator_and_spec.get('estimator'),
+            self.estimator_and_spec.get('feature_spec'),
+            self.custom_predict_fn,
+        )
+    ]
     if ('inference_address_2' in self.config or
         self.compare_estimator_and_spec.get('estimator') or
         self.compare_custom_predict_fn):
@@ -254,23 +254,31 @@ class WitWidgetBase(object):
 
   def get_eligible_features_impl(self):
     """Returns information about features eligible for mutant inference."""
-    examples = [self.json_to_proto(ex) for ex in self.examples[
-      0:NUM_EXAMPLES_FOR_MUTANT_ANALYSIS]]
+    examples = [
+        self.json_to_proto(ex)
+        for ex in self.examples[:NUM_EXAMPLES_FOR_MUTANT_ANALYSIS]
+    ]
     return inference_utils.get_eligible_features(
       examples, NUM_MUTANTS_TO_GENERATE)
 
   def sort_eligible_features_impl(self, info):
     """Returns sorted list of interesting features for mutant inference."""
     features_list = info['features']
-    chart_data = {}
-    for feat in features_list:
-      chart_data[feat['name']] = self.infer_mutants_impl({
-        'x_min': feat['observedMin'] if 'observedMin' in feat else 0,
-        'x_max': feat['observedMax'] if 'observedMin' in feat else 0,
-        'feature_index_pattern': None,
-        'feature_name': feat['name'],
-        'example_index': info['example_index'],
-      })
+    chart_data = {
+        feat['name']: self.infer_mutants_impl({
+            'x_min':
+            feat['observedMin'] if 'observedMin' in feat else 0,
+            'x_max':
+            feat['observedMax'] if 'observedMin' in feat else 0,
+            'feature_index_pattern':
+            None,
+            'feature_name':
+            feat['name'],
+            'example_index':
+            info['example_index'],
+        })
+        for feat in features_list
+    }
     return inference_utils.sort_eligible_features(
       features_list, chart_data)
 
@@ -284,15 +292,14 @@ class WitWidgetBase(object):
     feature_list = (example_to_check.context.feature
                     if self.config.get('are_sequence_examples')
                     else example_to_check.features.feature)
-    if 'image/encoded' in feature_list:
-      example_strings = [
-        self.json_to_proto(ex).SerializeToString()
-        for ex in self.examples]
-      encoded = ensure_str(base64.b64encode(
-        inference_utils.create_sprite_image(example_strings)))
-      return 'data:image/png;base64,{}'.format(encoded)
-    else:
+    if 'image/encoded' not in feature_list:
       return None
+    example_strings = [
+      self.json_to_proto(ex).SerializeToString()
+      for ex in self.examples]
+    encoded = ensure_str(base64.b64encode(
+      inference_utils.create_sprite_image(example_strings)))
+    return f'data:image/png;base64,{encoded}'
 
   def _json_from_tf_examples(self, tf_examples):
     json_exs = []
@@ -358,10 +365,7 @@ class WitWidgetBase(object):
         for (i, value) in enumerate(json_ex):
           # If feature names have been provided, use those feature names instead
           # of list indices for feature name when storing as tf.Example.
-          if feature_names and len(feature_names) > i:
-            feat = feature_names[i]
-          else:
-            feat = str(i)
+          feat = feature_names[i] if feature_names and len(feature_names) > i else str(i)
           add_single_feature(feat, value, ex)
         tf_examples.append(ex)
       else:
@@ -454,9 +458,8 @@ class WitWidgetBase(object):
           body={'instances': examples_for_predict}
       )
       user_agent = request_builder.headers.get('user-agent')
-      request_builder.headers['user-agent'] = (
-        USER_AGENT_FOR_CAIP_TRACKING +
-        ('-' + user_agent if user_agent else ''))
+      request_builder.headers['user-agent'] = USER_AGENT_FOR_CAIP_TRACKING + (
+          f'-{user_agent}' if user_agent else '')
       try:
         response = request_builder.execute()
       except Exception as e:
@@ -470,9 +473,9 @@ class WitWidgetBase(object):
             name=name,
             body={'instances': examples_for_predict}
           )
-          request_builder.headers['user-agent'] = (
-            USER_AGENT_FOR_CAIP_TRACKING +
-            ('-' + user_agent if user_agent else ''))
+          request_builder.headers[
+              'user-agent'] = USER_AGENT_FOR_CAIP_TRACKING + (f'-{user_agent}' if
+                                                              user_agent else '')
           explain_response = request_builder.execute()
           explanations = ([explain['attributions_by_label'][0]['attributions']
               for explain in explain_response['explanations']])
@@ -542,8 +545,7 @@ class WitWidgetBase(object):
               key_to_use = 'outputs'
 
           if key_to_use not in pred:
-            raise KeyError(
-              '"%s" not found in model predictions dictionary' % key_to_use)
+            raise KeyError(f'"{key_to_use}" not found in model predictions dictionary')
 
           pred = pred[key_to_use]
 
@@ -572,9 +574,9 @@ class WitWidgetBase(object):
 
     results = {'predictions': all_predictions}
     if all_attributions:
-      results.update({'attributions': all_attributions})
+      results['attributions'] = all_attributions
     if all_baseline_scores:
-      results.update({'baseline_score': all_baseline_scores})
+      results['baseline_score'] = all_baseline_scores
     return results
 
   def create_selection_callback(self, examples, max_examples):

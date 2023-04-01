@@ -157,14 +157,13 @@ class MutantFeatureValue(object):
     """Inits MutantFeatureValue."""
     if not isinstance(original_feature, OriginalFeatureList):
       raise ValueError(
-          'original_feature should be `OriginalFeatureList`, but had '
-          'unexpected type: {}'.format(type(original_feature)))
+          f'original_feature should be `OriginalFeatureList`, but had unexpected type: {type(original_feature)}'
+      )
     self.original_feature = original_feature
 
     if index is not None and not isinstance(index, integer_types):
       raise ValueError(
-          'index should be None or int, but had unexpected type: {}'.format(
-              type(index)))
+          f'index should be None or int, but had unexpected type: {type(index)}')
     self.index = index
     self.mutant_value = (mutant_value.encode()
         if isinstance(mutant_value, string_types) else mutant_value)
@@ -202,24 +201,23 @@ class ServingBundle(object):
                custom_predict_fn=None):
     """Inits ServingBundle."""
     if not isinstance(inference_address, string_types):
-      raise ValueError('Invalid inference_address has type: {}'.format(
-          type(inference_address)))
+      raise ValueError(
+          f'Invalid inference_address has type: {type(inference_address)}')
     # Clean the inference_address so that SmartStub likes it.
     self.inference_address = inference_address.replace('http://', '').replace(
         'https://', '')
 
     if not isinstance(model_name, string_types):
-      raise ValueError('Invalid model_name has type: {}'.format(
-          type(model_name)))
+      raise ValueError(f'Invalid model_name has type: {type(model_name)}')
     self.model_name = model_name
 
     if model_type not in ['classification', 'regression']:
-      raise ValueError('Invalid model_type: {}'.format(model_type))
+      raise ValueError(f'Invalid model_type: {model_type}')
     self.model_type = model_type
 
     self.model_version = int(model_version) if model_version else None
 
-    self.signature = signature if signature else None
+    self.signature = signature or None
 
     self.use_predict = use_predict
     self.predict_input_tensor = predict_input_tensor
@@ -243,11 +241,11 @@ def proto_value_for_feature(example, feature_name):
   """Get the value of a feature from Example regardless of feature type."""
   feature = get_example_features(example)[feature_name]
   if feature is None:
-    raise ValueError('Feature {} is not on example proto.'.format(feature_name))
+    raise ValueError(f'Feature {feature_name} is not on example proto.')
   feature_type = feature.WhichOneof('kind')
   if feature_type is None:
-    raise ValueError('Feature {} on example proto has no declared type.'.format(
-        feature_name))
+    raise ValueError(
+        f'Feature {feature_name} on example proto has no declared type.')
   return getattr(feature, feature_type).value
 
 
@@ -374,23 +372,21 @@ def get_categorical_features_to_sampling(examples, top_k):
 
   result = {}
   for feature_name, feature_values in sorted(iteritems(observed_features)):
-    samples = [
-        word
-        for word, count in collections.Counter(feature_values).most_common(
-            top_k) if count > 1
-    ]
-    if samples:
+    if samples := [
+        word for word, count in collections.Counter(
+            feature_values).most_common(top_k) if count > 1
+    ]:
       result[feature_name] = {'samples': samples}
   return result
 
 
 def make_mutant_features(original_feature, index_to_mutate, viz_params):
   """Return a list of `MutantFeatureValue`s that are variants of original."""
-  lower = viz_params.x_min
   upper = viz_params.x_max
   examples = viz_params.examples
   num_mutants = viz_params.num_mutants
 
+  lower = viz_params.x_min
   if original_feature.feature_type == 'float_list':
     return [
         MutantFeatureValue(original_feature, index_to_mutate, value)
@@ -417,8 +413,9 @@ def make_mutant_features(original_feature, index_to_mutate, viz_params):
         for value in mutant_values
     ]
   else:
-    raise ValueError('Malformed original feature had type of: ' +
-                     original_feature.feature_type)
+    raise ValueError(
+        f'Malformed original feature had type of: {original_feature.feature_type}'
+    )
 
 
 def make_mutant_tuples(example_protos, original_feature, index_to_mutate,
@@ -574,10 +571,10 @@ def make_json_formatted_for_single_chart(mutant_features,
         key = classification_class.label
         if index_to_mutate:
           key += ' (index %d)' % index_to_mutate
-        if not key in series:
+        if key not in series:
           series[key] = {}
         mutant_val = ensure_not_binary(mutant_feature.mutant_value)
-        if not mutant_val in series[key]:
+        if mutant_val not in series[key]:
           series[key][mutant_val] = []
         series[key][mutant_val].append(
           classification_class.score)
@@ -604,18 +601,16 @@ def make_json_formatted_for_single_chart(mutant_features,
       # lookup the mutant value for each inference.
       mutant_feature = mutant_features[idx % len(mutant_features)]
       mutant_val = ensure_not_binary(mutant_feature.mutant_value)
-      if not mutant_val in points:
+      if mutant_val not in points:
         points[mutant_val] = []
       points[mutant_val].append(regression.value)
     key = 'value'
     if (index_to_mutate != 0):
       key += ' (index %d)' % index_to_mutate
-    list_of_points = []
-    for value, y_list in iteritems(points):
-      list_of_points.append({
+    list_of_points = [{
         x_label: value,
         y_label: sum(y_list) / float(len(y_list))
-      })
+    } for value, y_list in iteritems(points)]
     list_of_points.sort(key=lambda p: p[x_label])
     return {key: list_of_points}
 
@@ -694,11 +689,9 @@ def sort_eligible_features(features_list, chart_data):
       for chart in models:
         for series in chart.values():
           if is_numeric:
-            # For numeric features, interestingness is the total Y distance
-            # traveled across the line chart.
-            measure = 0
-            for i in range(len(series) - 1):
-              measure += abs(series[i]['scalar'] - series[i + 1]['scalar'])
+            measure = sum(
+                abs(series[i]['scalar'] - series[i + 1]['scalar'])
+                for i in range(len(series) - 1))
           else:
             # For categorical features, interestingness is the difference
             # between the min and max Y values in the chart, as interestingness
@@ -813,8 +806,8 @@ def run_inference(examples, serving_bundle):
     RegressionResponse proto and the second entry being a dictionary of extra
     data for each example, such as attributions, or None if no data exists.
   """
-  batch_size = 64
   if serving_bundle.estimator and serving_bundle.feature_spec:
+    batch_size = 64
     # If provided an estimator and feature spec then run inference locally.
     preds = serving_bundle.estimator.predict(
       lambda: tf.data.Dataset.from_tensor_slices(
@@ -838,8 +831,7 @@ def run_inference(examples, serving_bundle):
         else:
           key_to_use = 'predictions'
       if key_to_use not in pred:
-        raise KeyError(
-          '"%s" not found in model predictions dictionary' % key_to_use)
+        raise KeyError(f'"{key_to_use}" not found in model predictions dictionary')
 
       values.append(pred[key_to_use])
     return (common_utils.convert_prediction_values(values, serving_bundle),

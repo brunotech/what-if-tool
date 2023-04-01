@@ -41,10 +41,7 @@ def filepath_to_filepath_list(file_path):
     A list of files represented by the provided path.
   """
   file_path = file_path.strip()
-  if '*' in file_path:
-    return glob(file_path)
-  else:
-    return [file_path]
+  return glob(file_path) if '*' in file_path else [file_path]
 
 
 def path_is_parent(parent_path, child_path):
@@ -84,7 +81,7 @@ def throw_if_file_access_not_allowed(file_path, logdir, allowed_dir=None):
   """
   file_paths = filepath_to_filepath_list(file_path)
   if not file_paths:
-    raise common_utils.InvalidUserInputError(file_path + ' contains no files')
+    raise common_utils.InvalidUserInputError(f'{file_path} contains no files')
 
   for path in file_paths:
     # Check if the file is inside the logdir or allowed dir.
@@ -188,8 +185,7 @@ def example_protos_from_path(path,
     return examples
   else:
     raise common_utils.InvalidUserInputError(
-        'No examples found at ' + path +
-        '. Valid formats are TFRecord files.')
+        f'No examples found at {path}. Valid formats are TFRecord files.')
 
 def call_servo(examples, serving_bundle):
   """Send an RPC request to the Servomatic prediction service.
@@ -202,7 +198,7 @@ def call_servo(examples, serving_bundle):
   Returns:
     A ClassificationResponse or RegressionResponse proto.
   """
-  parsed_url = urlparse('http://' + serving_bundle.inference_address)
+  parsed_url = urlparse(f'http://{serving_bundle.inference_address}')
   channel = implementations.insecure_channel(parsed_url.hostname,
                                              parsed_url.port)
   stub = prediction_service_pb2.beta_create_PredictionService_stub(channel)

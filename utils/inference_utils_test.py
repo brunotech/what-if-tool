@@ -181,8 +181,8 @@ class InferenceUtilsTest(tf.test.TestCase):
 
     # If we stop sampling at the first 3 examples, the only example should be
     # cat example.
-    data = inference_utils.get_categorical_features_to_sampling(
-        examples[0: 3], top_k=1)
+    data = inference_utils.get_categorical_features_to_sampling(examples[:3],
+                                                                top_k=1)
     self.assertDictEqual({
         'non_numeric': {
             'samples': ['cat']
@@ -190,8 +190,8 @@ class InferenceUtilsTest(tf.test.TestCase):
     }, data)
 
     # If we sample more examples, the top 2 examples should be cow and pony.
-    data = inference_utils.get_categorical_features_to_sampling(
-        examples[0: 20], top_k=2)
+    data = inference_utils.get_categorical_features_to_sampling(examples[:20],
+                                                                top_k=2)
     self.assertDictEqual({
         'non_numeric': {
             'samples': ['pony', 'cow']

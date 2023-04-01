@@ -200,8 +200,12 @@ class WhatIfToolPlugin(base_plugin.TBPlugin):
       self.updated_example_indices = set(range(len(json_examples)))
       return http_util.Respond(
           request,
-          {'examples': json_examples,
-           'sprite': True if self.sprite else False}, 'application/json')
+          {
+              'examples': json_examples,
+              'sprite': bool(self.sprite)
+          },
+          'application/json',
+      )
     except common_utils.InvalidUserInputError as e:
       logger.error('Data loading error: %s', e.message)
       return http_util.Respond(request, e.message,
@@ -275,8 +279,10 @@ class WhatIfToolPlugin(base_plugin.TBPlugin):
       return http_util.Respond(request, 'invalid index provided',
                                'application/json', code=400)
     del self.examples[index]
-    self.updated_example_indices = set([
-        i if i < index else i - 1 for i in self.updated_example_indices])
+    self.updated_example_indices = {
+        i if i < index else i - 1
+        for i in self.updated_example_indices
+    }
     self.generate_sprite([ex.SerializeToString() for ex in self.examples])
     return http_util.Respond(request, {}, 'application/json')
 
@@ -368,7 +374,7 @@ class WhatIfToolPlugin(base_plugin.TBPlugin):
       Categorical features are repesented as {name: samples:[]}.
     """
     features_list = inference_utils.get_eligible_features(
-      self.examples[0: NUM_EXAMPLES_TO_SCAN], NUM_MUTANTS)
+        self.examples[:NUM_EXAMPLES_TO_SCAN], NUM_MUTANTS)
     return http_util.Respond(request, features_list, 'application/json')
 
   @wrappers.Request.application
@@ -390,22 +396,29 @@ class WhatIfToolPlugin(base_plugin.TBPlugin):
     """
     try:
       features_list = inference_utils.get_eligible_features(
-          self.examples[0: NUM_EXAMPLES_TO_SCAN], NUM_MUTANTS)
+          self.examples[:NUM_EXAMPLES_TO_SCAN], NUM_MUTANTS)
       example_index = int(request.args.get('example_index', '0'))
       (inference_addresses, model_names, model_versions,
           model_signatures) = self._parse_request_arguments(request)
-      chart_data = {}
-      for feat in features_list:
-        chart_data[feat['name']] = self._infer_mutants_impl(
-          feat['name'], example_index,
-          inference_addresses, model_names, request.args.get('model_type'),
-          model_versions, model_signatures,
-          request.args.get('use_predict') == 'true',
-          request.args.get('predict_input_tensor'),
-          request.args.get('predict_output_tensor'),
-          feat['observedMin'] if 'observedMin' in feat else 0,
-          feat['observedMax'] if 'observedMin' in feat else 0,
-          None, custom_predict_fn=self.custom_predict_fn)
+      chart_data = {
+          feat['name']: self._infer_mutants_impl(
+              feat['name'],
+              example_index,
+              inference_addresses,
+              model_names,
+              request.args.get('model_type'),
+              model_versions,
+              model_signatures,
+              request.args.get('use_predict') == 'true',
+              request.args.get('predict_input_tensor'),
+              request.args.get('predict_output_tensor'),
+              feat['observedMin'] if 'observedMin' in feat else 0,
+              feat['observedMax'] if 'observedMin' in feat else 0,
+              None,
+              custom_predict_fn=self.custom_predict_fn,
+          )
+          for feat in features_list
+      }
       features_list = inference_utils.sort_eligible_features(
         features_list, chart_data)
       return http_util.Respond(request, features_list, 'application/json')
@@ -462,22 +475,25 @@ class WhatIfToolPlugin(base_plugin.TBPlugin):
     """Helper for generating PD plots for a feature."""
     examples = (self.examples if example_index == -1
                 else [self.examples[example_index]])
-    serving_bundles = []
-    for model_num in xrange(len(inference_addresses)):
-      serving_bundles.append(inference_utils.ServingBundle(
-          inference_addresses[model_num],
-          model_names[model_num],
-          model_type,
-          model_versions[model_num],
-          model_signatures[model_num],
-          use_predict,
-          predict_input_tensor,
-          predict_output_tensor,
-          custom_predict_fn=custom_predict_fn))
-
+    serving_bundles = [
+        inference_utils.ServingBundle(
+            inference_addresses[model_num],
+            model_names[model_num],
+            model_type,
+            model_versions[model_num],
+            model_signatures[model_num],
+            use_predict,
+            predict_input_tensor,
+            predict_output_tensor,
+            custom_predict_fn=custom_predict_fn,
+        ) for model_num in xrange(len(inference_addresses))
+    ]
     viz_params = inference_utils.VizParams(
-        x_min, x_max,
-        self.examples[0:NUM_EXAMPLES_TO_SCAN], NUM_MUTANTS,
-        feature_index_pattern)
+        x_min,
+        x_max,
+        self.examples[:NUM_EXAMPLES_TO_SCAN],
+        NUM_MUTANTS,
+        feature_index_pattern,
+    )
     return inference_utils.mutant_charts_for_feature(
         examples, feature_name, serving_bundles, viz_params)
