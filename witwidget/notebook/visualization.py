@@ -81,15 +81,15 @@ class WitConfigBuilder(object):
     self.store('examples', examples)
     if feature_names:
       self.store('feature_names', feature_names)
-    if len(examples) > 0 and not (
-      isinstance(examples[0], tf.train.Example) or
-      isinstance(examples[0], tf.train.SequenceExample)):
-      self._set_uses_json_input(True)
-      if isinstance(examples[0], list):
-        self._set_uses_json_list(True)
-    elif len(examples) > 0:
-      self.store('are_sequence_examples',
-                 isinstance(examples[0], tf.train.SequenceExample))
+    if len(examples) > 0:
+      if not (isinstance(examples[0],
+                         (tf.train.Example, tf.train.SequenceExample))):
+        self._set_uses_json_input(True)
+        if isinstance(examples[0], list):
+          self._set_uses_json_list(True)
+      else:
+        self.store('are_sequence_examples',
+                   isinstance(examples[0], tf.train.SequenceExample))
     return self
 
   def set_model_type(self, model):

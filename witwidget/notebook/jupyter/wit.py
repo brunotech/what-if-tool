@@ -133,8 +133,10 @@ class WitWidget(widgets.DOMWidget, base.WitWidgetBase):
   def _delete_example(self, change):
     index = self.delete_example['index']
     self.examples.pop(index)
-    self.updated_example_indices = set([
-        i if i < index else i - 1 for i in self.updated_example_indices])
+    self.updated_example_indices = {
+        i if i < index else i - 1
+        for i in self.updated_example_indices
+    }
     self._generate_sprite()
 
   @observe('compute_custom_distance')

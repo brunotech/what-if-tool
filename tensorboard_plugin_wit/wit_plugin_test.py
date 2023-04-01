@@ -123,7 +123,7 @@ class InferencePluginTest(tf.test.TestCase):
         self.get_fake_example(1),
         self.get_fake_example(2)
     ]
-    self.plugin.updated_example_indices = set([0, 2])
+    self.plugin.updated_example_indices = {0, 2}
 
     inference_result_proto = regression_pb2.RegressionResponse()
     regression = inference_result_proto.result.regressions.add()
@@ -257,7 +257,7 @@ class InferencePluginTest(tf.test.TestCase):
         'model_signature': '',
     })
     response = self.server.get(
-        '/data/plugin/whatif/sort_eligible_features?' + url_options)
+        f'/data/plugin/whatif/sort_eligible_features?{url_options}')
 
     self.assertEqual(200, response.status_code)
     self.assertEqual(0, len(self.plugin.updated_example_indices))
